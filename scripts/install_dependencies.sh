@@ -34,9 +34,11 @@ if ! ldconfig -p 2>/dev/null | grep -q ydlidar_sdk; then
   sudo ldconfig
 fi
 
+# The upstream driver has a dedicated Humble branch. Use it on Ubuntu 22.04/ROS 2 Humble.
 DRIVER_DIR="$WS/src/ydlidar_ros2_driver"
 if [ ! -d "$DRIVER_DIR/.git" ]; then
-  git clone https://github.com/YDLIDAR/ydlidar_ros2_driver.git "$DRIVER_DIR"
+  git clone --branch humble --single-branch \
+    https://github.com/YDLIDAR/ydlidar_ros2_driver.git "$DRIVER_DIR"
 fi
 
 echo
