@@ -8,8 +8,9 @@ ROS 2 Humble stack for an autonomous differential-drive robot for the RTK Cup Hi
 - Arduino Uno as the lower-level wheel controller
 - ZK-5AD motor driver
 - 2 × JGA25-370B geared DC motors with quadrature encoders
-- wheel diameter: **69 mm** (effective diameter is still being calibrated)
-- wheel base: **185 mm** (effective base is still being calibrated)
+- effective odometry wheel diameter: **60.13 mm**
+- physical center-to-center wheel spacing: **245 mm**
+- calibrated effective kinematic wheel base: **228.84 mm**
 - measured encoder scale on 2026-09-09:
   - left: **897.4 ticks/wheel revolution**
   - right: **898.8 ticks/wheel revolution**
@@ -41,16 +42,16 @@ scripts/
 
 ## 1. Flash the Arduino from Ubuntu terminal
 
-The repository can compile and upload `.ino` files directly from the Raspberry Pi/Ubuntu terminal using Arduino CLI.
+The repository can compile and upload `.ino` files directly from the Raspberry Pi/Ubuntu terminal using Ubuntu AVR packages, Arduino-Makefile and `avrdude`.
 
-One-time Arduino CLI setup:
+One-time terminal toolchain setup:
 
 ```bash
 cd ~/turtle_gorod
 bash scripts/install_arduino_cli.sh
 ```
 
-The installer downloads the official Arduino CLI build for the current Linux architecture and installs the `arduino:avr` core.
+The script name is kept for compatibility, but on this robot it installs the Ubuntu-packaged AVR/Arduino toolchain instead of downloading Arduino CLI. This avoids the MIREA network's third-party SSL certificate problem.
 
 To compile and upload the current lower-level firmware to the connected Arduino Uno:
 
@@ -59,7 +60,7 @@ cd ~/turtle_gorod
 bash scripts/flash_arduino.sh
 ```
 
-The script automatically prefers the persistent Arduino `/dev/serial/by-id/...` device, compiles for `arduino:avr:uno`, uploads, and verifies the flash.
+The script automatically prefers the persistent Arduino `/dev/serial/by-id/...` device, compiles for Arduino Uno and uploads with `avrdude`.
 
 You can also upload any other `.ino` file:
 
@@ -221,4 +222,4 @@ See:
 docs/CALIBRATION.md
 ```
 
-Do not tune SLAM/Nav2 against uncalibrated wheel odometry. Encoder ticks/revolution have now been measured directly; effective wheel diameter and effective wheel base are the next calibration steps.
+Encoder ticks/revolution, effective rolling diameter and effective wheel base have been calibrated on the real robot. The next motion task is straight-line drift/PID verification under floor load before tuning SLAM/Nav2.
