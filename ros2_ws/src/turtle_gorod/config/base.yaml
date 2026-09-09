@@ -2,7 +2,7 @@ serial_bridge:
   ros__parameters:
     port: /dev/ttyUSB0
     baudrate: 115200
-    wheel_base_m: 0.245
+    wheel_base_m: 0.22884
     max_wheel_speed_mps: 0.35
     cmd_timeout_sec: 0.30
     command_rate_hz: 20.0
