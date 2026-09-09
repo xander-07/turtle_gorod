@@ -5,15 +5,16 @@ ROS 2 Humble stack for an autonomous differential-drive robot for the RTK Cup Hi
 ## Hardware currently assumed
 
 - Raspberry Pi 4 8 GB, Ubuntu 22.04, ROS 2 Humble
-- Arduino Nano as the lower-level wheel controller
+- Arduino Uno as the lower-level wheel controller
 - ZK-5AD motor driver
 - 2 × JGA25-370B geared DC motors with quadrature encoders
-- wheel diameter: **69 mm** (from the supplied firmware)
-- wheel base: **185 mm** (from the supplied firmware)
+- wheel diameter: **69 mm** (effective diameter is still being calibrated)
+- wheel base: **185 mm** (effective base is still being calibrated)
+- measured encoder scale on 2026-09-09:
+  - left: **897.4 ticks/wheel revolution**
+  - right: **898.8 ticks/wheel revolution**
 - YDLIDAR X3 / X3 Pro through USB adapter (YB-1)
 - differential drive
-
-> **Important:** the original firmware uses `GEAR_RATIO=78`, `11` motor encoder pulses/rev and x4 quadrature decoding = **3432 ticks/wheel revolution**. Do not assume this is correct only from the motor name. Calibrate it on the real robot before tuning Nav2.
 
 ## Competition constraints implemented in the architecture
 
@@ -38,15 +39,49 @@ docs/CALIBRATION.md
 scripts/
 ```
 
-## 1. Flash the Arduino
+## 1. Flash the Arduino from Ubuntu terminal
 
-Flash:
+The repository can compile and upload `.ino` files directly from the Raspberry Pi/Ubuntu terminal using Arduino CLI.
+
+One-time Arduino CLI setup:
+
+```bash
+cd ~/turtle_gorod
+bash scripts/install_arduino_cli.sh
+```
+
+The installer downloads the official Arduino CLI build for the current Linux architecture and installs the `arduino:avr` core.
+
+To compile and upload the current lower-level firmware to the connected Arduino Uno:
+
+```bash
+cd ~/turtle_gorod
+bash scripts/flash_arduino.sh
+```
+
+The script automatically prefers the persistent Arduino `/dev/serial/by-id/...` device, compiles for `arduino:avr:uno`, uploads, and verifies the flash.
+
+You can also upload any other `.ino` file:
+
+```bash
+bash scripts/flash_arduino.sh /path/to/MySketch.ino
+```
+
+Or explicitly specify both sketch and port:
+
+```bash
+bash scripts/flash_arduino.sh /path/to/MySketch.ino /dev/ttyACM0
+```
+
+Before flashing, stop `ros2 launch turtle_gorod base.launch.py` and close serial monitors so the Arduino port is free.
+
+Current robot firmware:
 
 ```text
 firmware/Low_level.ino
 ```
 
-The firmware adds:
+It provides:
 
 - non-blocking UART parsing;
 - 50 Hz wheel PID;
@@ -55,7 +90,7 @@ The firmware adds:
 - command watchdog (350 ms);
 - differential odometry;
 - safe stop on loss of Raspberry Pi;
-- backward-compatible `SET_WHEELS_SPEED`, `SET_POSE`, `SET_COEFF`, `SET_PWM`.
+- `SET_WHEELS_SPEED`, `SET_POSE`, `SET_COEFF`, `SET_PWM`, `STOP`, `PING`.
 
 Telemetry format:
 
@@ -78,9 +113,9 @@ Find persistent USB device names:
 ls -l /dev/serial/by-id/
 ```
 
-Prefer `/dev/serial/by-id/...` over `/dev/ttyUSB0`/`1` when both Arduino and YDLIDAR are connected.
+Prefer `/dev/serial/by-id/...` over `/dev/ttyUSB0`/`ttyACM0` whenever possible.
 
-## 3. Build
+## 3. Build ROS 2 workspace
 
 ```bash
 cd ~/turtle_gorod
@@ -93,8 +128,7 @@ source ros2_ws/install/setup.bash
 Put the robot on a stand first.
 
 ```bash
-ros2 launch turtle_gorod base.launch.py \
-  serial_port:=/dev/serial/by-id/YOUR_ARDUINO
+ros2 launch turtle_gorod base.launch.py
 ```
 
 In another shell:
@@ -111,14 +145,18 @@ ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist \
 "{linear: {x: 0.10}, angular: {z: 0.0}}"
 ```
 
-Because both ROS and Arduino have command timeouts, a one-shot command only causes a short movement. For continuous testing use `teleop_twist_keyboard`.
+Because both ROS and Arduino have command timeouts, a one-shot command only causes a short movement. For continuous testing publish at a fixed rate or use teleop.
+
+Raw encoder totals are available as:
+
+```bash
+ros2 topic echo /wheel_ticks --once
+```
 
 ## 5. LiDAR test
 
 ```bash
-ros2 launch turtle_gorod lidar.launch.py \
-  lidar_port:=/dev/serial/by-id/YOUR_YDLIDAR \
-  lidar_x:=0.0 lidar_y:=0.0 lidar_z:=0.10 lidar_yaw:=0.0
+ros2 launch turtle_gorod lidar.launch.py
 ```
 
 Check:
@@ -143,8 +181,6 @@ If the scan is mirrored or rotated, do **not** compensate randomly in Nav2: firs
 
 ```bash
 ros2 launch turtle_gorod bringup.launch.py \
-  serial_port:=/dev/serial/by-id/YOUR_ARDUINO \
-  lidar_port:=/dev/serial/by-id/YOUR_YDLIDAR \
   lidar_x:=0.0 lidar_y:=0.0 lidar_z:=0.10 lidar_yaw:=0.0
 ```
 
@@ -172,27 +208,17 @@ The competition rules allow a map built during preparation, so localization agai
 
 ```bash
 ros2 launch turtle_gorod navigation.launch.py \
-  map:=/home/ubuntu/turtle_gorod/maps/gorod.yaml
+  map:=/home/turtle/turtle_gorod/maps/gorod.yaml
 ```
 
 Set the initial pose in RViz (`2D Pose Estimate`) for the first tests. Automatic selection among competition start corners/directions will be implemented in the mission layer after the real map is available.
 
-## What I need from the first test
+## Calibration
 
-Please send the terminal output of:
+See:
 
-```bash
-ros2 topic hz /scan
-ros2 topic echo /odom --once
-ros2 run tf2_ros tf2_echo odom base_link
+```text
+docs/CALIBRATION.md
 ```
 
-and tell me:
-
-1. exact Arduino serial device;
-2. exact YDLIDAR serial device;
-3. LiDAR position relative to robot center: X, Y, Z and whether its cable/zero mark points forward;
-4. chassis outer length × width;
-5. whether a camera is already installed (model + resolution/FOV if known).
-
-Then the next commit can lock the geometry, calibrate odometry, and add semantic sign recognition + the topological mission planner for the actual RTK city field.
+Do not tune SLAM/Nav2 against uncalibrated wheel odometry. Encoder ticks/revolution have now been measured directly; effective wheel diameter and effective wheel base are the next calibration steps.
