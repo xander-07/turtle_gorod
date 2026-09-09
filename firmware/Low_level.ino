@@ -34,17 +34,23 @@ const int8_t MOTOR_DIR_R = -1;
 const int8_t ENC_DIR_L   = +1;
 const int8_t ENC_DIR_R   = -1;
 
-// Геометрия.
-// Эффективный диаметр откалиброван дорожным тестом 2026-09-09:
-// реальный путь 1000 мм, по энкодерам при 69 мм получалось ~1147.45 мм.
-// 69.0 * 1000 / 1147.45 = 60.13 мм.
-const float WHEEL_DIAMETER_MM = 60.13f;
+// Геометрия и эффективные дорожные масштабы.
+// Средний линейный масштаб 60.13 мм сохраняем, но после двух 2-метровых
+// прямолинейных тестов используем отдельные эффективные диаметры сторон.
+// Без коррекции робот ушел вправо ~13 см за 2 м.
+// При тестовой команде angular.z=+0.0065 рад/с ушел влево всего ~0.5-1 см.
+// Интерполяция до нулевого бокового ухода дает требуемое отношение тиков
+// правого/левого колеса ~1.0103 при физически прямом движении.
+// Значения ниже меняют именно преобразование тиков в путь и PID-измерение,
+// а не добавляют скрытую угловую команду.
+const float LEFT_WHEEL_DIAMETER_MM  = 60.39f;
+const float RIGHT_WHEEL_DIAMETER_MM = 59.87f;
 
 // Физически между центрами ведущих колес измерено 245 мм.
 // Эффективная кинематическая база откалибрована двумя тестами по 5 оборотов:
 // против часовой стрелки: 231.32 мм; по часовой стрелке: 226.35 мм.
 // Среднее значение для одометрии и управления: 228.84 мм.
-const float WHEEL_BASE_MM     = 228.84f;
+const float WHEEL_BASE_MM = 228.84f;
 
 // Прямое измерение 2026-09-09: ровно 10 оборотов каждого колеса.
 // Левое: 8974 тика / 10 = 897.4 тика/оборот.
@@ -53,9 +59,9 @@ const float LEFT_ENCODER_TICKS_PER_WHEEL_REV  = 897.4f;
 const float RIGHT_ENCODER_TICKS_PER_WHEEL_REV = 898.8f;
 
 const float LEFT_TICK_TO_MM =
-    (PI * WHEEL_DIAMETER_MM) / LEFT_ENCODER_TICKS_PER_WHEEL_REV;
+    (PI * LEFT_WHEEL_DIAMETER_MM) / LEFT_ENCODER_TICKS_PER_WHEEL_REV;
 const float RIGHT_TICK_TO_MM =
-    (PI * WHEEL_DIAMETER_MM) / RIGHT_ENCODER_TICKS_PER_WHEEL_REV;
+    (PI * RIGHT_WHEEL_DIAMETER_MM) / RIGHT_ENCODER_TICKS_PER_WHEEL_REV;
 
 const uint16_t CONTROL_PERIOD_MS   = 20;   // 50 Hz
 const uint16_t TELEMETRY_PERIOD_MS = 50;   // 20 Hz
@@ -460,7 +466,7 @@ void setup() {
   lastTelemetryMs = millis();
   lastCommandMs = millis();
 
-  Serial.println(F("READY turtle_gorod_low_level_v2.4_wheelbase_calibrated"));
+  Serial.println(F("READY turtle_gorod_low_level_v2.5_straight_calibrated"));
 }
 
 void loop() {
