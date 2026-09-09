@@ -11,14 +11,16 @@ LEFT_ENCODER_TICKS_PER_WHEEL_REV  = 897.4
 RIGHT_ENCODER_TICKS_PER_WHEEL_REV = 898.8
 ```
 
-Straight-line calibration produced the current effective rolling diameter:
+The original common effective rolling diameter was calibrated to 60.13 mm. After the straight-line drift tests, the same average linear scale is retained but split into separate left/right effective diameters:
 
 ```text
-WHEEL_DIAMETER_MM = 60.13
+LEFT_WHEEL_DIAMETER_MM  = 60.39
+RIGHT_WHEEL_DIAMETER_MM = 59.87
 ```
 
-The physical center-to-center distance between the left and right driven wheels is **245 mm**.
-For differential-drive odometry, the effective kinematic wheel base was calibrated with two independent five-turn tests on the floor.
+These are odometry/control calibration values, not ruler measurements of the tire.
+
+The physical center-to-center distance between the left and right driven wheels is **245 mm**. For differential-drive odometry, the effective kinematic wheel base was calibrated with two independent five-turn tests on the floor.
 
 Counter-clockwise five-turn test:
 
@@ -66,9 +68,9 @@ At angular Z = 0.5 rad/s the right motor did not initially overcome its low-spee
 
 For future verification, rotate one selected wheel exactly 10 full revolutions and compare `/wheel_ticks` before and after.
 
-## 3. Effective wheel diameter — calibrated
+## 3. Effective linear scale — calibrated
 
-Forward 1 m verification after the first diameter correction produced approximately:
+Forward 1 m verification after the first common-diameter correction produced approximately:
 
 ```text
 x = 1.02243 m
@@ -82,9 +84,9 @@ x = -0.98211 m
 y = -0.04958 m
 ```
 
-The average linear scale is close enough that `60.13 mm` is retained rather than overfitting to manual stopping error.
+The average linear scale is close enough that the mean effective diameter remains approximately 60.13 mm rather than being retuned from manual stopping error.
 
-## 4. Effective wheel base — calibrated, final 360-degree verification next
+## 4. Effective wheel base — calibrated
 
 Current values:
 
@@ -93,24 +95,51 @@ physical wheel spacing = 245 mm
 effective wheel base    = 228.84 mm
 ```
 
-After flashing/building these values, perform one controlled 360-degree turn in each direction to verify the result. Small residual differences can be averaged; do not tune straight-line drift using wheel base.
+A one-turn counter-clockwise verification after applying 228.84 mm ended with odometry about +12.4 degrees past zero. The robot was physically observed to have been manually over-rotated by roughly 5–10 degrees, so the five-turn calibration is retained.
 
-## 5. Straight-line drift / PID — next
+Do not tune straight-line drift using wheel base.
 
-The robot still tends to drift to the right by roughly 4–5 cm over a 1 m straight run.
-Do not compensate this with wheel base or an artificial ROS yaw correction.
+## 5. Straight-line tracking — per-wheel rolling scale calibrated
 
-Next compare left/right target and measured wheel speeds under floor load, then tune PID/feed-forward or apply a small per-wheel calibration if the speed tracking confirms a persistent asymmetry.
+A 2.00 m run with `linear.x=0.10`, `angular.z=0.0` produced:
 
-Suggested PID tuning order:
+```text
+delta left ticks  = 9358
+delta right ticks = 9322
+odom x             = 1.96331 m
+odom y             = -0.06915 m
+physical drift     = about 13 cm right
+```
 
-1. set `Ki=0`, `Kd=0`;
-2. increase `Kp` until both sides track without persistent oscillation;
-3. set feedforward so steady-state PWM is mostly provided by `Kff`;
-4. add a small `Ki` to remove remaining steady error;
-5. use `Kd` only if needed.
+A second 2.00 m run used a temporary diagnostic correction only:
 
-Start with speeds 80, 150, 250 mm/s and compare target vs measured values.
+```text
+linear.x  = 0.10 m/s
+angular.z = +0.0065 rad/s
+```
+
+The second run produced approximately:
+
+```text
+delta left ticks  = 9276
+delta right ticks = 9379
+odom x             = 1.96041 m
+odom y             = +0.06105 m
+physical drift     = about 0.5–1.0 cm left
+```
+
+The temporary angular command demonstrated the wheel asymmetry but is **not** kept as a hidden steering bias. Interpolating the two physical drift results to zero lateral error gives a required right/left encoder-rate ratio of about 1.0103 during physically straight travel.
+
+To encode that relationship correctly in both odometry and wheel-speed feedback while preserving the existing mean linear scale, the firmware now uses:
+
+```text
+LEFT_WHEEL_DIAMETER_MM  = 60.39
+RIGHT_WHEEL_DIAMETER_MM = 59.87
+```
+
+Because the PID measures wheel speed using these per-side scales, an ordinary equal wheel-speed command should naturally produce the small right-side encoder-rate increase needed for physically straight motion. No artificial `angular.z` offset is added in ROS.
+
+Next verification: flash the firmware and repeat a 2.00 m run with exactly `linear.x=0.10`, `angular.z=0.0`. Record physical lateral drift, `/odom`, and `/wheel_ticks` before/after.
 
 ## 6. LiDAR transform
 
