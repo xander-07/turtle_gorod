@@ -12,13 +12,20 @@ First floor test with a straight command produced approximately:
 - odometry Y: -0.00283 m
 - odometry yaw: about -1.27 deg
 
-The linear odometry scale is therefore wrong by roughly 3.48x. Do **not** tune
-Nav2 or wheel base yet. First measure the real encoder ticks per wheel revolution.
-The current 3432 ticks/rev assumption is very likely incorrect.
+The original linear odometry scale was therefore wrong by roughly 3.48x.
 
-A preliminary estimate from the straight-line scale alone would be about
-987 ticks/rev, but this is **not** written into the firmware yet because direct
-encoder measurement is more reliable.
+Direct encoder measurement was then performed with 10 full wheel revolutions:
+
+- left wheel: 8974 ticks / 10 = **897.4 ticks/rev**
+- right wheel: 8988 ticks / 10 = **898.8 ticks/rev**
+- difference between sides: about **0.16%**
+
+The previous calculated assumption of 3432 ticks/rev was therefore incorrect.
+The firmware now uses separate measured values for the left and right encoders.
+
+The straight-line scale estimate made before the direct measurement (~987 ticks/rev)
+did not include wheel-diameter error. With the measured encoder values applied, the
+next road test is used to calibrate the effective wheel diameter.
 
 The ROS bridge publishes raw encoder totals on `/wheel_ticks` as:
 
@@ -39,42 +46,41 @@ Current direction test passed:
 - positive linear X: both wheels forward
 - positive angular Z: left wheel backward, right wheel forward
 
-## 2. Ticks per wheel revolution
+At angular Z = 0.5 rad/s the right motor did not initially overcome its low-speed
+dead zone, but at angular Z = 1.0 rad/s both wheels rotated in the correct directions.
+Do not tune the dead-zone compensation until the robot is tested under floor load.
 
-The current firmware preserves the original assumption:
+## 2. Ticks per wheel revolution — completed
+
+Measured directly on 2026-09-09:
 
 ```text
-78 gear ratio × 11 pulses/motor-rev × 4 quadrature = 3432 ticks/wheel-rev
+LEFT_ENCODER_TICKS_PER_WHEEL_REV  = 897.4
+RIGHT_ENCODER_TICKS_PER_WHEEL_REV = 898.8
 ```
 
-Verify it directly before changing the firmware.
+These values are now written into `firmware/Low_level.ino`.
 
-1. Stop motion and keep the robot safely powered so the encoder electronics remain active.
-2. Mark both wheels at a clearly visible reference position.
+For future verification:
+
+1. Stop motion and keep the encoder electronics powered.
+2. Mark a wheel at a clear reference position.
 3. Read `/wheel_ticks` once.
-4. Rotate only the left wheel exactly 10 full revolutions by hand in the forward direction.
+4. Rotate the selected wheel exactly 10 full revolutions by hand.
 5. Read `/wheel_ticks` again.
-6. `left_ticks_per_rev = abs(delta_left_ticks) / 10`.
-7. Return to a stable position and repeat for the right wheel.
-8. `right_ticks_per_rev = abs(delta_right_ticks) / 10`.
+6. `ticks_per_rev = abs(delta_ticks) / 10`.
 
-ROS commands:
+ROS command:
 
 ```bash
 ros2 topic echo /wheel_ticks --once
 ```
 
-If the two sides differ by more than ~1%, inspect the encoders/wiring before
-averaging them.
+## 3. Effective wheel diameter — next step
 
-After direct measurement, update `ENCODER_TICKS_PER_WHEEL_REV` in
-`firmware/Low_level.ino` and reflash the Uno.
+Only do this after flashing the firmware with the corrected ticks/rev values.
 
-## 3. Effective wheel diameter
-
-Only do this after ticks/rev has been corrected.
-
-Command a slow straight run over a measured distance (for example 2.0 m).
+Command a slow straight run over a carefully measured distance, ideally 1.0–2.0 m.
 
 If odometry reports `D_odom` for actual distance `D_real`:
 
@@ -82,7 +88,11 @@ If odometry reports `D_odom` for actual distance `D_real`:
 diameter_new = diameter_old × D_real / D_odom
 ```
 
-Repeat in both directions and use the average.
+Current starting value is 69.0 mm. Do not change it from the old 1.15 m test,
+because that test was made while the encoder scale was still wrong.
+
+Repeat the road test after flashing the calibrated firmware. If possible, repeat
+forward and backward and average the result.
 
 ## 4. Effective wheel base
 
@@ -99,11 +109,17 @@ wheel_base_new = wheel_base_old × theta_odom / theta_real
 
 Use at least 5–10 turns to reduce measurement error.
 
-## 5. PID
+## 5. Straight-line drift / PID
 
-Tune on blocks first.
+The first floor run drifted about 7 cm to the right over 1.15 m. Do not compensate
+for this by changing wheel base or encoder scale. Re-evaluate it after encoder and
+wheel-diameter calibration.
 
-Suggested order:
+If the drift remains, compare left/right target and measured wheel speeds under
+floor load. Then tune PID/feed-forward or apply small per-wheel calibration rather
+than adding an artificial yaw correction at the ROS layer.
+
+Suggested PID tuning order:
 
 1. set `Ki=0`, `Kd=0`;
 2. increase `Kp` until both sides track without persistent oscillation;
