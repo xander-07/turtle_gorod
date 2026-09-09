@@ -7,6 +7,7 @@ import rclpy
 from geometry_msgs.msg import TransformStamped, Twist
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
+from std_msgs.msg import Int64MultiArray
 from std_srvs.srv import Trigger
 from tf2_ros import TransformBroadcaster
 
@@ -30,7 +31,7 @@ class SerialBridge(Node):
     def __init__(self):
         super().__init__("serial_bridge")
 
-        self.declare_parameter("port", "/dev/ttyACM0")
+        self.declare_parameter("port", "/dev/ttyUSB0")
         self.declare_parameter("baudrate", 115200)
         self.declare_parameter("wheel_base_m", 0.185)
         self.declare_parameter("max_wheel_speed_mps", 0.45)
@@ -64,9 +65,12 @@ class SerialBridge(Node):
 
         self._last_warn_no_serial_ns = 0
         self._last_telemetry_ns: Optional[int] = None
-        self._connected_ns: Optional[int] = None
+        self._startup_banner_seen = False
 
         self.odom_pub = self.create_publisher(Odometry, "odom", 20)
+        self.wheel_ticks_pub = self.create_publisher(
+            Int64MultiArray, "wheel_ticks", 20
+        )
         self.tf_broadcaster = TransformBroadcaster(self)
 
         self.create_subscription(Twist, self.cmd_vel_topic, self._on_cmd_vel, 20)
@@ -96,14 +100,11 @@ class SerialBridge(Node):
             ser.reset_input_buffer()
             with self._serial_lock:
                 self._serial = ser
-            self._connected_ns = self._now_ns()
-            self._rx_buffer.clear()
             self.get_logger().info(
                 f"Connected to lower level: {self.port} @ {self.baudrate}"
             )
         except (SerialException, OSError) as exc:
             self._serial = None
-            self._connected_ns = None
             self.get_logger().warning(
                 f"Cannot open lower level {self.port}: {exc}"
             )
@@ -112,7 +113,6 @@ class SerialBridge(Node):
         with self._serial_lock:
             ser = self._serial
             self._serial = None
-        self._connected_ns = None
         if ser is not None:
             try:
                 ser.close()
@@ -206,12 +206,13 @@ class SerialBridge(Node):
             self._rx_buffer.clear()
 
     def _handle_line(self, line: str):
-        # Opening an Arduino Uno serial port toggles DTR and normally resets the
-        # ATmega328P. If it resets while a telemetry line is in flight, the old
-        # partial TEL line and the new READY banner can arrive as one line. This
-        # is expected during connection and should not be reported as bad data.
-        if "READY turtle_gorod_low_level" in line:
-            self.get_logger().info("Lower level is ready")
+        # Opening the Uno serial port toggles DTR and resets the MCU. If the reset
+        # lands in the middle of a telemetry line, the tail of TEL can be joined
+        # with the READY banner. Treat that as harmless startup noise.
+        if "READY turtle_gorod_low_level_v2" in line:
+            if not self._startup_banner_seen:
+                self._startup_banner_seen = True
+                self.get_logger().info("Lower level is ready")
             return
 
         if not line.startswith("TEL,"):
@@ -221,14 +222,9 @@ class SerialBridge(Node):
 
         fields = line.split(",")
         if len(fields) != 12:
-            in_startup_grace = (
-                self._connected_ns is not None
-                and (self._now_ns() - self._connected_ns) < int(2e9)
+            self.get_logger().warning(
+                f"Malformed telemetry ({len(fields)} fields): {line}"
             )
-            if not in_startup_grace:
-                self.get_logger().warning(
-                    f"Malformed telemetry ({len(fields)} fields): {line}"
-                )
             return
 
         try:
@@ -236,21 +232,20 @@ class SerialBridge(Node):
             x_m = float(fields[2]) / 1000.0
             y_m = float(fields[3]) / 1000.0
             theta = float(fields[4])
-            _enc_l = int(fields[5])
-            _enc_r = int(fields[6])
+            enc_l = int(fields[5])
+            enc_r = int(fields[6])
             vl_mps = float(fields[7]) / 1000.0
             vr_mps = float(fields[8]) / 1000.0
             _target_l = float(fields[9])
             _target_r = float(fields[10])
             watchdog = int(fields[11])
         except ValueError:
-            in_startup_grace = (
-                self._connected_ns is not None
-                and (self._now_ns() - self._connected_ns) < int(2e9)
-            )
-            if not in_startup_grace:
-                self.get_logger().warning(f"Cannot parse telemetry: {line}")
+            self.get_logger().warning(f"Cannot parse telemetry: {line}")
             return
+
+        ticks_msg = Int64MultiArray()
+        ticks_msg.data = [enc_l, enc_r]
+        self.wheel_ticks_pub.publish(ticks_msg)
 
         stamp = self.get_clock().now().to_msg()
         qx, qy, qz, qw = yaw_to_quaternion(theta)
