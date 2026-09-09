@@ -25,12 +25,12 @@ def yaw_to_quaternion(yaw: float):
 
 
 class SerialBridge(Node):
-    """Bridge ROS 2 cmd_vel <-> Arduino Nano wheel controller."""
+    """Bridge ROS 2 cmd_vel <-> Arduino Uno wheel controller."""
 
     def __init__(self):
         super().__init__("serial_bridge")
 
-        self.declare_parameter("port", "/dev/ttyUSB0")
+        self.declare_parameter("port", "/dev/ttyACM0")
         self.declare_parameter("baudrate", 115200)
         self.declare_parameter("wheel_base_m", 0.185)
         self.declare_parameter("max_wheel_speed_mps", 0.45)
@@ -64,6 +64,7 @@ class SerialBridge(Node):
 
         self._last_warn_no_serial_ns = 0
         self._last_telemetry_ns: Optional[int] = None
+        self._connected_ns: Optional[int] = None
 
         self.odom_pub = self.create_publisher(Odometry, "odom", 20)
         self.tf_broadcaster = TransformBroadcaster(self)
@@ -95,11 +96,14 @@ class SerialBridge(Node):
             ser.reset_input_buffer()
             with self._serial_lock:
                 self._serial = ser
+            self._connected_ns = self._now_ns()
+            self._rx_buffer.clear()
             self.get_logger().info(
                 f"Connected to lower level: {self.port} @ {self.baudrate}"
             )
         except (SerialException, OSError) as exc:
             self._serial = None
+            self._connected_ns = None
             self.get_logger().warning(
                 f"Cannot open lower level {self.port}: {exc}"
             )
@@ -108,6 +112,7 @@ class SerialBridge(Node):
         with self._serial_lock:
             ser = self._serial
             self._serial = None
+        self._connected_ns = None
         if ser is not None:
             try:
                 ser.close()
@@ -201,6 +206,14 @@ class SerialBridge(Node):
             self._rx_buffer.clear()
 
     def _handle_line(self, line: str):
+        # Opening an Arduino Uno serial port toggles DTR and normally resets the
+        # ATmega328P. If it resets while a telemetry line is in flight, the old
+        # partial TEL line and the new READY banner can arrive as one line. This
+        # is expected during connection and should not be reported as bad data.
+        if "READY turtle_gorod_low_level" in line:
+            self.get_logger().info("Lower level is ready")
+            return
+
         if not line.startswith("TEL,"):
             if line.startswith("ERR"):
                 self.get_logger().warning(f"Lower level: {line}")
@@ -208,9 +221,14 @@ class SerialBridge(Node):
 
         fields = line.split(",")
         if len(fields) != 12:
-            self.get_logger().warning(
-                f"Malformed telemetry ({len(fields)} fields): {line}"
+            in_startup_grace = (
+                self._connected_ns is not None
+                and (self._now_ns() - self._connected_ns) < int(2e9)
             )
+            if not in_startup_grace:
+                self.get_logger().warning(
+                    f"Malformed telemetry ({len(fields)} fields): {line}"
+                )
             return
 
         try:
@@ -226,7 +244,12 @@ class SerialBridge(Node):
             _target_r = float(fields[10])
             watchdog = int(fields[11])
         except ValueError:
-            self.get_logger().warning(f"Cannot parse telemetry: {line}")
+            in_startup_grace = (
+                self._connected_ns is not None
+                and (self._now_ns() - self._connected_ns) < int(2e9)
+            )
+            if not in_startup_grace:
+                self.get_logger().warning(f"Cannot parse telemetry: {line}")
             return
 
         stamp = self.get_clock().now().to_msg()
