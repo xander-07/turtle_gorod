@@ -18,6 +18,8 @@ if ! command -v make >/dev/null 2>&1 || ! command -v avrdude >/dev/null 2>&1; th
   exit 1
 fi
 
+AVRDUDE_BIN="$(command -v avrdude)"
+
 if [ ! -e "$SKETCH_INPUT" ]; then
   echo "Sketch not found: $SKETCH_INPUT" >&2
   exit 1
@@ -120,14 +122,39 @@ MONITOR_PORT = $PORT_REAL
 include /usr/share/arduino/Arduino.mk
 EOF
 
-echo "Backend:     Arduino-Makefile + avrdude (Ubuntu packages)"
+echo "Backend:     Arduino-Makefile + system avrdude"
 echo "Board:       Arduino Uno"
 echo "Port:        $PORT_INPUT -> $PORT_REAL"
 echo "Sketch:      $SKETCH_INPUT"
+echo "avrdude:     $AVRDUDE_BIN"
 echo
-echo "Compiling and uploading..."
+echo "Compiling..."
 
-make -C "$SKETCH_DIR" upload
+# Only build with Arduino-Makefile. Its Ubuntu 22.04 upload rule may point to a
+# non-existent bundled avrdude.conf, so uploading is performed separately with
+# the distro's /usr/bin/avrdude, which uses the valid system configuration.
+make -C "$SKETCH_DIR"
+
+HEX_FILE="$(find "$SKETCH_DIR" -type f -path '*/build-*/*.hex' ! -name '*.with_bootloader.hex' | head -n 1)"
+if [ -z "$HEX_FILE" ] || [ ! -f "$HEX_FILE" ]; then
+  echo "Compiled .hex file was not found." >&2
+  find "$SKETCH_DIR" -maxdepth 3 -type f -name '*.hex' -print >&2 || true
+  exit 1
+fi
+
+echo
+echo "Uploading: $HEX_FILE"
+
+# Arduino Uno bootloader uses the STK500/Arduino protocol at 115200 baud.
+# Do not pass -C here: the system avrdude automatically uses its installed
+# configuration (normally /etc/avrdude.conf). Verification remains enabled.
+"$AVRDUDE_BIN" \
+  -p atmega328p \
+  -c arduino \
+  -P "$PORT_REAL" \
+  -b 115200 \
+  -D \
+  -U "flash:w:$HEX_FILE:i"
 
 echo
 echo "Firmware upload completed successfully."
