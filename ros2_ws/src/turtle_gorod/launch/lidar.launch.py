@@ -6,6 +6,9 @@ from launch_ros.actions import Node
 import os
 
 
+YDLIDAR_PORT = "/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0"
+
+
 def generate_launch_description():
     share = get_package_share_directory("turtle_gorod")
     params = os.path.join(share, "config", "ydlidar_x3.yaml")
@@ -19,8 +22,8 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument(
             "lidar_port",
-            default_value="/dev/ttyUSB1",
-            description="YDLIDAR X3 serial port",
+            default_value=YDLIDAR_PORT,
+            description="YDLIDAR X3 persistent serial port",
         ),
         DeclareLaunchArgument("lidar_x", default_value="0.0"),
         DeclareLaunchArgument("lidar_y", default_value="0.0"),
