@@ -2,6 +2,30 @@
 
 Do this before tuning SLAM or Nav2.
 
+## Current observed result (2026-09-09)
+
+First floor test with a straight command produced approximately:
+
+- actual travel: 1.15 m
+- odometry X: 0.33079 m
+- lateral drift: ~0.07 m to the right
+- odometry Y: -0.00283 m
+- odometry yaw: about -1.27 deg
+
+The linear odometry scale is therefore wrong by roughly 3.48x. Do **not** tune
+Nav2 or wheel base yet. First measure the real encoder ticks per wheel revolution.
+The current 3432 ticks/rev assumption is very likely incorrect.
+
+A preliminary estimate from the straight-line scale alone would be about
+987 ticks/rev, but this is **not** written into the firmware yet because direct
+encoder measurement is more reliable.
+
+The ROS bridge publishes raw encoder totals on `/wheel_ticks` as:
+
+```text
+[left_encoder_ticks, right_encoder_ticks]
+```
+
 ## 1. Encoder direction
 
 Lift the drive wheels.
@@ -9,6 +33,11 @@ Lift the drive wheels.
 Command +0.10 m/s straight ahead. Both `vL` and `vR` in telemetry must be positive.
 If a wheel physically runs backward, change its `MOTOR_DIR_*`. If it physically
 runs forward but its encoder speed is negative, change only `ENC_DIR_*`.
+
+Current direction test passed:
+
+- positive linear X: both wheels forward
+- positive angular Z: left wheel backward, right wheel forward
 
 ## 2. Ticks per wheel revolution
 
@@ -18,21 +47,32 @@ The current firmware preserves the original assumption:
 78 gear ratio × 11 pulses/motor-rev × 4 quadrature = 3432 ticks/wheel-rev
 ```
 
-Verify it.
+Verify it directly before changing the firmware.
 
-1. Mark one wheel.
-2. Read `encL`/`encR`.
-3. Rotate the wheel exactly 10 full revolutions by hand with power disabled.
-4. Read the encoder again.
-5. `ticks_per_rev = abs(delta_ticks) / 10`.
-6. Repeat for both wheels.
+1. Stop motion and keep the robot safely powered so the encoder electronics remain active.
+2. Mark both wheels at a clearly visible reference position.
+3. Read `/wheel_ticks` once.
+4. Rotate only the left wheel exactly 10 full revolutions by hand in the forward direction.
+5. Read `/wheel_ticks` again.
+6. `left_ticks_per_rev = abs(delta_left_ticks) / 10`.
+7. Return to a stable position and repeat for the right wheel.
+8. `right_ticks_per_rev = abs(delta_right_ticks) / 10`.
+
+ROS commands:
+
+```bash
+ros2 topic echo /wheel_ticks --once
+```
 
 If the two sides differ by more than ~1%, inspect the encoders/wiring before
 averaging them.
 
-Update `ENCODER_TICKS_PER_WHEEL_REV` in `firmware/Low_level.ino` and reflash.
+After direct measurement, update `ENCODER_TICKS_PER_WHEEL_REV` in
+`firmware/Low_level.ino` and reflash the Uno.
 
 ## 3. Effective wheel diameter
+
+Only do this after ticks/rev has been corrected.
 
 Command a slow straight run over a measured distance (for example 2.0 m).
 
@@ -45,6 +85,8 @@ diameter_new = diameter_old × D_real / D_odom
 Repeat in both directions and use the average.
 
 ## 4. Effective wheel base
+
+Only do this after ticks/rev and wheel diameter are correct.
 
 Rotate the robot several full turns on a high-friction surface and independently
 measure the actual angle.
