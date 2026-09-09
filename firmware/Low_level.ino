@@ -34,14 +34,16 @@ const int8_t MOTOR_DIR_R = -1;
 const int8_t ENC_DIR_L   = +1;
 const int8_t ENC_DIR_R   = -1;
 
-// Геометрия. Диаметр и база будут уточнены последующими дорожными тестами.
-const float WHEEL_DIAMETER_MM = 69.0f;
+// Геометрия.
+// Эффективный диаметр откалиброван дорожным тестом 2026-09-09:
+// реальный путь 1000 мм, по энкодерам при 69 мм получалось ~1147.45 мм.
+// 69.0 * 1000 / 1147.45 = 60.13 мм.
+const float WHEEL_DIAMETER_MM = 60.13f;
 const float WHEEL_BASE_MM     = 185.0f;
 
 // Прямое измерение 2026-09-09: ровно 10 оборотов каждого колеса.
 // Левое: 8974 тика / 10 = 897.4 тика/оборот.
 // Правое: 8988 тиков / 10 = 898.8 тика/оборот.
-// Старое расчетное значение 3432 было неверным и занижало одометрию примерно в 3.5 раза.
 const float LEFT_ENCODER_TICKS_PER_WHEEL_REV  = 897.4f;
 const float RIGHT_ENCODER_TICKS_PER_WHEEL_REV = 898.8f;
 
@@ -453,7 +455,7 @@ void setup() {
   lastTelemetryMs = millis();
   lastCommandMs = millis();
 
-  Serial.println(F("READY turtle_gorod_low_level_v2.1_calibrated"));
+  Serial.println(F("READY turtle_gorod_low_level_v2.2_diameter_calibrated"));
 }
 
 void loop() {
