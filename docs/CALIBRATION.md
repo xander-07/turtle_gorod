@@ -2,38 +2,50 @@
 
 Do this before tuning SLAM or Nav2.
 
-## Current observed result (2026-09-09)
+## Current calibrated values (2026-09-09)
 
-First floor test with the old encoder scale:
-
-- actual travel: 1.15 m
-- odometry X: 0.33079 m
-- lateral drift: ~0.07 m to the right
-
-Direct encoder measurement with 10 wheel revolutions:
-
-- left wheel: 8974 ticks / 10 = **897.4 ticks/rev**
-- right wheel: 8988 ticks / 10 = **898.8 ticks/rev**
-- difference between sides: about **0.16%**
-
-After flashing those measured encoder values, a 1.00 m floor test produced:
-
-- odometry X: 1.14515 m
-- odometry Y: -0.06933 m
-- odometry displacement: ~1.14725 m
-- raw ticks after the run: left 4775, right 4733
-- odometry yaw: about -3.69 deg
-
-Using wheel travel derived directly from the encoder totals with the old 69.0 mm
-diameter gives an average odometric travel of about 1147.45 mm. Therefore:
+Measured encoder scale from 10 full wheel revolutions:
 
 ```text
-WHEEL_DIAMETER_MM = 69.0 × 1000 / 1147.45 ≈ 60.13 mm
+LEFT_ENCODER_TICKS_PER_WHEEL_REV  = 897.4
+RIGHT_ENCODER_TICKS_PER_WHEEL_REV = 898.8
 ```
 
-The firmware now uses **60.13 mm** as the effective wheel diameter. This is an
-effective rolling diameter for odometry calibration; it does not need to equal the
-physical ruler measurement of the tire.
+Straight-line calibration produced the current effective rolling diameter:
+
+```text
+WHEEL_DIAMETER_MM = 60.13
+```
+
+The physical center-to-center distance between the left and right driven wheels is **245 mm**.
+For differential-drive odometry, the effective kinematic wheel base was calibrated with two independent five-turn tests on the floor.
+
+Counter-clockwise five-turn test:
+
+```text
+delta left ticks  = -17337
+delta right ticks = +17213
+effective base    = 231.32 mm
+```
+
+Clockwise five-turn test:
+
+```text
+start ticks        = [-17335, 17213]
+end ticks          = [-505, 235]
+delta left ticks   = +16830
+delta right ticks  = -16978
+effective base     = 226.35 mm
+```
+
+Average effective kinematic wheel base:
+
+```text
+WHEEL_BASE_MM = 228.84
+wheel_base_m  = 0.22884
+```
+
+This effective value is intentionally different from the physical 245 mm measurement because tire contact, deformation and in-place slip affect the differential-drive turning geometry.
 
 The ROS bridge publishes raw encoder totals on `/wheel_ticks` as:
 
@@ -48,57 +60,47 @@ Current direction test passed:
 - positive linear X: both wheels forward
 - positive angular Z: left wheel backward, right wheel forward
 
-At angular Z = 0.5 rad/s the right motor did not initially overcome its low-speed
-dead zone, but at angular Z = 1.0 rad/s both wheels rotated correctly.
+At angular Z = 0.5 rad/s the right motor did not initially overcome its low-speed dead zone, but at angular Z = 1.0 rad/s both wheels rotated correctly.
 
 ## 2. Ticks per wheel revolution — completed
 
-```text
-LEFT_ENCODER_TICKS_PER_WHEEL_REV  = 897.4
-RIGHT_ENCODER_TICKS_PER_WHEEL_REV = 898.8
-```
+For future verification, rotate one selected wheel exactly 10 full revolutions and compare `/wheel_ticks` before and after.
 
-For future verification, rotate one selected wheel exactly 10 full revolutions and
-compare `/wheel_ticks` before and after.
+## 3. Effective wheel diameter — calibrated
 
-## 3. Effective wheel diameter — calibrated, verify once more
-
-Current firmware value:
+Forward 1 m verification after the first diameter correction produced approximately:
 
 ```text
-WHEEL_DIAMETER_MM = 60.13
+x = 1.02243 m
+y = -0.04068 m
 ```
 
-Repeat a carefully measured 1.00 m straight run after flashing this value. The
-odometry displacement should now be close to 1.00 m. If the remaining scale error
-is more than about 1–2%, calculate one final correction:
+Backward 1 m verification produced approximately:
 
 ```text
-diameter_new = diameter_old × D_real / D_odom
+x = -0.98211 m
+y = -0.04958 m
 ```
 
-## 4. Effective wheel base — next geometric calibration
+The average linear scale is close enough that `60.13 mm` is retained rather than overfitting to manual stopping error.
 
-Only do this after the repeated 1 m test confirms the linear scale.
+## 4. Effective wheel base — calibrated, final 360-degree verification next
 
-Rotate the robot several full turns on a high-friction surface and independently
-measure the actual angle.
-
-If odometry reports `theta_odom` while the actual rotation is `theta_real`:
+Current values:
 
 ```text
-wheel_base_new = wheel_base_old × theta_odom / theta_real
+physical wheel spacing = 245 mm
+effective wheel base    = 228.84 mm
 ```
 
-Use at least 5–10 turns to reduce measurement error.
+After flashing/building these values, perform one controlled 360-degree turn in each direction to verify the result. Small residual differences can be averaged; do not tune straight-line drift using wheel base.
 
-## 5. Straight-line drift / PID
+## 5. Straight-line drift / PID — next
 
-Do not compensate straight-line drift by changing wheel base or adding an artificial
-ROS yaw correction. Re-evaluate drift after the 60.13 mm diameter is flashed.
+The robot still tends to drift to the right by roughly 4–5 cm over a 1 m straight run.
+Do not compensate this with wheel base or an artificial ROS yaw correction.
 
-If drift remains, compare left/right target and measured wheel speeds under floor
-load. Then tune PID/feed-forward or apply a small per-wheel calibration.
+Next compare left/right target and measured wheel speeds under floor load, then tune PID/feed-forward or apply a small per-wheel calibration if the speed tracking confirms a persistent asymmetry.
 
 Suggested PID tuning order:
 
@@ -112,8 +114,6 @@ Start with speeds 80, 150, 250 mm/s and compare target vs measured values.
 
 ## 6. LiDAR transform
 
-Measure from `base_link` (robot center, X forward, Y left, Z up) to the LiDAR
-optical/rotation center. Enter the transform in `bringup.launch.py` arguments.
+Measure from `base_link` (robot center, X forward, Y left, Z up) to the LiDAR optical/rotation center. Enter the transform in `bringup.launch.py` arguments.
 
-A wrong LiDAR transform can look like bad wheel odometry during SLAM, so calibrate
-it before judging SLAM quality.
+A wrong LiDAR transform can look like bad wheel odometry during SLAM, so calibrate it before judging SLAM quality.
