@@ -7,6 +7,10 @@ from launch_ros.actions import Node
 import os
 
 
+ARDUINO_PORT = "/dev/serial/by-id/usb-Arduino__www.arduino.cc__Arduino_Uno_97565498126230836400-if00"
+YDLIDAR_PORT = "/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0"
+
+
 def generate_launch_description():
     share = get_package_share_directory("turtle_gorod")
 
@@ -49,8 +53,8 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        DeclareLaunchArgument("serial_port", default_value="/dev/ttyUSB0"),
-        DeclareLaunchArgument("lidar_port", default_value="/dev/ttyUSB1"),
+        DeclareLaunchArgument("serial_port", default_value=ARDUINO_PORT),
+        DeclareLaunchArgument("lidar_port", default_value=YDLIDAR_PORT),
         DeclareLaunchArgument("lidar_x", default_value="0.0"),
         DeclareLaunchArgument("lidar_y", default_value="0.0"),
         DeclareLaunchArgument("lidar_z", default_value="0.10"),
