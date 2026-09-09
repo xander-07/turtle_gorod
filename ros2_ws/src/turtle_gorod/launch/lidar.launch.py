@@ -25,9 +25,12 @@ def generate_launch_description():
             default_value=YDLIDAR_PORT,
             description="YDLIDAR X3 persistent serial port",
         ),
-        DeclareLaunchArgument("lidar_x", default_value="0.0"),
+        # base_link: X forward, Y left, Z up.
+        # LiDAR is centered laterally, mounted about 4 cm behind the robot
+        # center and the scan plane is about 13 cm above the floor.
+        DeclareLaunchArgument("lidar_x", default_value="-0.04"),
         DeclareLaunchArgument("lidar_y", default_value="0.0"),
-        DeclareLaunchArgument("lidar_z", default_value="0.10"),
+        DeclareLaunchArgument("lidar_z", default_value="0.13"),
         DeclareLaunchArgument("lidar_yaw", default_value="0.0"),
         Node(
             package="ydlidar_ros2_driver",
