@@ -9,7 +9,13 @@ ydlidar_ros2_driver_node:
     sample_rate: 3
     abnormal_check_count: 4
     fixed_resolution: true
-    reversion: false
+    # Measured on the robot: with reversion=false, an object physically
+    # in front appeared at about -179 deg while an object on the right
+    # appeared at about +90 deg. reversion=true applies the required
+    # 180-degree scan rotation at the source so consumers such as the
+    # collision guard see front at 0 deg. Keep inverted=true to preserve
+    # the measured counter-clockwise angle convention.
+    reversion: true
     inverted: true
     auto_reconnect: true
     isSingleChannel: true
