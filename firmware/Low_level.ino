@@ -3,13 +3,13 @@
 
 // ================================================================
 // turtle_gorod — нижний уровень
-// Arduino Nano + ZK-5AD + 2x JGA25-370B с квадратурными энкодерами
+// Arduino Uno + ZK-5AD + 2x JGA25-370B с квадратурными энкодерами
 //
-// Протокол UART 115200:
+// UART 115200:
 //   SET_WHEELS_SPEED <left_mm_s> <right_mm_s>
 //   SET_POSE <x_mm> <y_mm> <theta_rad>
 //   SET_COEFF <kp> <ki> <kd> <kff>
-//   SET_PWM <leftA> <leftB> <rightA> <rightB>   // только для стендовой проверки
+//   SET_PWM <leftA> <leftB> <rightA> <rightB>
 //   STOP
 //   PING
 //
@@ -28,26 +28,32 @@
 #define RIGHT_ENCODER_A  12
 #define RIGHT_ENCODER_B  11
 
+// Физическое направление приводов и энкодеров подтверждено стендовым тестом.
 const int8_t MOTOR_DIR_L = +1;
 const int8_t MOTOR_DIR_R = -1;
 const int8_t ENC_DIR_L   = +1;
 const int8_t ENC_DIR_R   = -1;
 
-// Значения перенесены из исходной прошивки пользователя.
-// ОБЯЗАТЕЛЬНО откалибровать фактическое число тиков на оборот колеса.
+// Геометрия. Диаметр и база будут уточнены последующими дорожными тестами.
 const float WHEEL_DIAMETER_MM = 69.0f;
 const float WHEEL_BASE_MM     = 185.0f;
-const float GEAR_RATIO = 78.0f;
-const float PULSES_PER_MOTOR_REV = 11.0f;
-const float ENCODER_TICKS_PER_WHEEL_REV =
-    GEAR_RATIO * PULSES_PER_MOTOR_REV * 4.0f;
-const float TICKS_TO_MM =
-    (PI * WHEEL_DIAMETER_MM) / ENCODER_TICKS_PER_WHEEL_REV;
 
-const uint16_t CONTROL_PERIOD_MS = 20;
-const uint16_t TELEMETRY_PERIOD_MS = 50;
-const uint16_t COMMAND_TIMEOUT_MS = 350;
-const float SPEED_FILTER_ALPHA = 0.45f;
+// Прямое измерение 2026-09-09: ровно 10 оборотов каждого колеса.
+// Левое: 8974 тика / 10 = 897.4 тика/оборот.
+// Правое: 8988 тиков / 10 = 898.8 тика/оборот.
+// Старое расчетное значение 3432 было неверным и занижало одометрию примерно в 3.5 раза.
+const float LEFT_ENCODER_TICKS_PER_WHEEL_REV  = 897.4f;
+const float RIGHT_ENCODER_TICKS_PER_WHEEL_REV = 898.8f;
+
+const float LEFT_TICK_TO_MM =
+    (PI * WHEEL_DIAMETER_MM) / LEFT_ENCODER_TICKS_PER_WHEEL_REV;
+const float RIGHT_TICK_TO_MM =
+    (PI * WHEEL_DIAMETER_MM) / RIGHT_ENCODER_TICKS_PER_WHEEL_REV;
+
+const uint16_t CONTROL_PERIOD_MS   = 20;   // 50 Hz
+const uint16_t TELEMETRY_PERIOD_MS = 50;   // 20 Hz
+const uint16_t COMMAND_TIMEOUT_MS  = 350;
+const float SPEED_FILTER_ALPHA     = 0.45f;
 
 float pidKp  = 1.1f;
 float pidKi  = 1.3f;
@@ -73,8 +79,8 @@ static inline uint8_t readLeftAB() {
 }
 
 static inline uint8_t readRightAB() {
-  const uint8_t a = (PINB >> 4) & 1;
-  const uint8_t b = (PINB >> 3) & 1;
+  const uint8_t a = (PINB >> 4) & 1;  // D12
+  const uint8_t b = (PINB >> 3) & 1;  // D11
   return a | (b << 1);
 }
 
@@ -122,9 +128,9 @@ void setWheelSignedPWM(int pwmLeft, int pwmRight) {
   setMotorsPWM(leftA, leftB, rightA, rightB);
 }
 
-float targetLeftMmS  = 0.0f;
+float targetLeftMmS = 0.0f;
 float targetRightMmS = 0.0f;
-float measuredLeftMmS  = 0.0f;
+float measuredLeftMmS = 0.0f;
 float measuredRightMmS = 0.0f;
 
 float xMm = 0.0f;
@@ -173,8 +179,8 @@ void updateControl(float dt) {
   lastControlLeftEncoder = encL;
   lastControlRightEncoder = encR;
 
-  const float dLeftMm  = dTicksL * TICKS_TO_MM;
-  const float dRightMm = dTicksR * TICKS_TO_MM;
+  const float dLeftMm  = dTicksL * LEFT_TICK_TO_MM;
+  const float dRightMm = dTicksR * RIGHT_TICK_TO_MM;
 
   const float instLeft  = dLeftMm / dt;
   const float instRight = dRightMm / dt;
@@ -214,7 +220,7 @@ void updateControl(float dt) {
   const float integralLimit = 300.0f;
   const float stopEps = 1.0f;
 
-  float errL = targetLeftMmS  - measuredLeftMmS;
+  float errL = targetLeftMmS - measuredLeftMmS;
   float errR = targetRightMmS - measuredRightMmS;
 
   if (fabs(targetLeftMmS) < stopEps) {
@@ -261,7 +267,7 @@ void updateControl(float dt) {
 char rxLine[128];
 uint8_t rxLen = 0;
 
-char* nextToken(char **savePtr) {
+char *nextToken(char **savePtr) {
   return strtok_r(NULL, " ", savePtr);
 }
 
@@ -447,7 +453,7 @@ void setup() {
   lastTelemetryMs = millis();
   lastCommandMs = millis();
 
-  Serial.println(F("READY turtle_gorod_low_level_v2"));
+  Serial.println(F("READY turtle_gorod_low_level_v2.1_calibrated"));
 }
 
 void loop() {
