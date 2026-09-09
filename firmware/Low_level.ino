@@ -39,7 +39,12 @@ const int8_t ENC_DIR_R   = -1;
 // реальный путь 1000 мм, по энкодерам при 69 мм получалось ~1147.45 мм.
 // 69.0 * 1000 / 1147.45 = 60.13 мм.
 const float WHEEL_DIAMETER_MM = 60.13f;
-const float WHEEL_BASE_MM     = 185.0f;
+
+// Геометрическое расстояние между центрами левого и правого ведущих колес
+// измерено на роботе 2026-09-09: 245 мм.
+// После этого значения эффективная база будет уточнена многократным разворотом
+// на полу, так как проскальзывание может немного менять ее кинематическое значение.
+const float WHEEL_BASE_MM     = 245.0f;
 
 // Прямое измерение 2026-09-09: ровно 10 оборотов каждого колеса.
 // Левое: 8974 тика / 10 = 897.4 тика/оборот.
@@ -455,7 +460,7 @@ void setup() {
   lastTelemetryMs = millis();
   lastCommandMs = millis();
 
-  Serial.println(F("READY turtle_gorod_low_level_v2.2_diameter_calibrated"));
+  Serial.println(F("READY turtle_gorod_low_level_v2.3_wheelbase_measured"));
 }
 
 void loop() {
