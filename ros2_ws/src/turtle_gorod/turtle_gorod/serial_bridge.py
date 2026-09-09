@@ -33,7 +33,7 @@ class SerialBridge(Node):
 
         self.declare_parameter("port", "/dev/ttyUSB0")
         self.declare_parameter("baudrate", 115200)
-        self.declare_parameter("wheel_base_m", 0.185)
+        self.declare_parameter("wheel_base_m", 0.22884)
         self.declare_parameter("max_wheel_speed_mps", 0.45)
         self.declare_parameter("cmd_timeout_sec", 0.30)
         self.declare_parameter("command_rate_hz", 20.0)
