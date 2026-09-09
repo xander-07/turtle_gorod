@@ -3,17 +3,18 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEFAULT_SKETCH="$ROOT/firmware/Low_level.ino"
-FQBN="${ARDUINO_FQBN:-arduino:avr:uno}"
 SKETCH_INPUT="${1:-$DEFAULT_SKETCH}"
 PORT_INPUT="${2:-${ARDUINO_PORT:-}}"
 
-if command -v arduino-cli >/dev/null 2>&1; then
-  CLI="$(command -v arduino-cli)"
-elif [ -x "$HOME/.local/bin/arduino-cli" ]; then
-  CLI="$HOME/.local/bin/arduino-cli"
-else
-  echo "arduino-cli is not installed." >&2
+if [ ! -f /usr/share/arduino/Arduino.mk ]; then
+  echo "Arduino terminal toolchain is not installed." >&2
   echo "Run first: cd ~/turtle_gorod && bash scripts/install_arduino_cli.sh" >&2
+  exit 1
+fi
+
+if ! command -v make >/dev/null 2>&1 || ! command -v avrdude >/dev/null 2>&1; then
+  echo "Arduino build/upload tools are incomplete." >&2
+  echo "Run: bash scripts/install_arduino_cli.sh" >&2
   exit 1
 fi
 
@@ -35,7 +36,7 @@ if [ -z "$PORT_INPUT" ]; then
     exit 1
   elif [ -e /dev/ttyACM0 ]; then
     PORT_INPUT="/dev/ttyACM0"
-    echo "WARNING: persistent /dev/serial/by-id Arduino name was not found; using /dev/ttyACM0." >&2
+    echo "WARNING: persistent Arduino name was not found; using /dev/ttyACM0." >&2
   else
     echo "Arduino Uno was not found." >&2
     echo "Check: ls -l /dev/serial/by-id/" >&2
@@ -50,7 +51,7 @@ fi
 
 PORT_REAL="$(readlink -f "$PORT_INPUT" 2>/dev/null || printf '%s' "$PORT_INPUT")"
 
-# Do not fight with serial_bridge/another serial monitor for the Uno port.
+# Do not fight with serial_bridge/serial monitor for the Uno port.
 if command -v fuser >/dev/null 2>&1; then
   BUSY_PIDS="$(fuser "$PORT_REAL" 2>/dev/null || true)"
   if [ -n "$BUSY_PIDS" ]; then
@@ -62,26 +63,26 @@ if command -v fuser >/dev/null 2>&1; then
 fi
 
 if ! groups "$USER" | tr ' ' '\n' | grep -qx dialout; then
-  echo "WARNING: $USER is not in the dialout group. Upload may fail with Permission denied." >&2
+  echo "WARNING: $USER is not in the dialout group. Upload may fail." >&2
   echo "Fix once with: sudo usermod -aG dialout $USER && sudo reboot" >&2
 fi
 
-if ! "$CLI" core list | awk 'NR > 1 {print $1}' | grep -qx 'arduino:avr'; then
-  echo "Arduino AVR core is missing. Installing it..."
-  "$CLI" core update-index
-  "$CLI" core install arduino:avr
-fi
-
-TMP_DIR=""
+TMP_DIR="$(mktemp -d)"
 cleanup() {
-  if [ -n "$TMP_DIR" ] && [ -d "$TMP_DIR" ]; then
-    rm -rf "$TMP_DIR"
-  fi
+  rm -rf "$TMP_DIR"
 }
 trap cleanup EXIT
 
 if [ -d "$SKETCH_INPUT" ]; then
-  SKETCH_DIR="$(cd "$SKETCH_INPUT" && pwd)"
+  SOURCE_DIR="$(cd "$SKETCH_INPUT" && pwd)"
+  shopt -s nullglob
+  INO_FILES=("$SOURCE_DIR"/*.ino)
+  shopt -u nullglob
+  if [ "${#INO_FILES[@]}" -ne 1 ]; then
+    echo "Sketch directory must contain exactly one .ino file: $SOURCE_DIR" >&2
+    exit 1
+  fi
+  SKETCH_NAME="$(basename "${INO_FILES[0]}" .ino)"
 else
   SKETCH_FILE="$(cd "$(dirname "$SKETCH_INPUT")" && pwd)/$(basename "$SKETCH_INPUT")"
   case "$SKETCH_FILE" in
@@ -91,38 +92,45 @@ else
       exit 1
       ;;
   esac
-
+  SOURCE_DIR="$(dirname "$SKETCH_FILE")"
   SKETCH_NAME="$(basename "$SKETCH_FILE" .ino)"
-  TMP_DIR="$(mktemp -d)"
-  SKETCH_DIR="$TMP_DIR/$SKETCH_NAME"
-  mkdir -p "$SKETCH_DIR"
-  cp "$SKETCH_FILE" "$SKETCH_DIR/$SKETCH_NAME.ino"
-
-  # Copy conventional companion source/header files located next to the .ino file.
-  SRC_DIR="$(dirname "$SKETCH_FILE")"
-  shopt -s nullglob
-  for companion in "$SRC_DIR"/*.h "$SRC_DIR"/*.hpp "$SRC_DIR"/*.c "$SRC_DIR"/*.cpp; do
-    cp "$companion" "$SKETCH_DIR/"
-  done
-  shopt -u nullglob
 fi
 
-echo "Arduino CLI: $CLI"
-echo "Board:       $FQBN"
+SKETCH_DIR="$TMP_DIR/$SKETCH_NAME"
+mkdir -p "$SKETCH_DIR"
+
+if [ -d "$SKETCH_INPUT" ]; then
+  cp "${INO_FILES[0]}" "$SKETCH_DIR/$SKETCH_NAME.ino"
+else
+  cp "$SKETCH_FILE" "$SKETCH_DIR/$SKETCH_NAME.ino"
+fi
+
+# Copy conventional companion source/header files located next to the sketch.
+shopt -s nullglob
+for companion in "$SOURCE_DIR"/*.h "$SOURCE_DIR"/*.hpp "$SOURCE_DIR"/*.c "$SOURCE_DIR"/*.cpp; do
+  cp "$companion" "$SKETCH_DIR/"
+done
+shopt -u nullglob
+
+cat > "$SKETCH_DIR/Makefile" <<EOF
+ARDUINO_DIR = /usr/share/arduino
+ARDMK_DIR = /usr/share/arduino
+BOARD_TAG = uno
+MONITOR_PORT = $PORT_REAL
+include /usr/share/arduino/Arduino.mk
+EOF
+
+echo "Backend:     Arduino-Makefile + avrdude (Ubuntu packages)"
+echo "Board:       Arduino Uno"
 echo "Port:        $PORT_INPUT -> $PORT_REAL"
 echo "Sketch:      $SKETCH_INPUT"
 echo
 echo "Compiling and uploading..."
 
-"$CLI" compile \
-  --fqbn "$FQBN" \
-  --port "$PORT_INPUT" \
-  --upload \
-  --verify \
-  "$SKETCH_DIR"
+make -C "$SKETCH_DIR" upload
 
 echo
 echo "Firmware upload completed successfully."
-echo "For the robot lower level, start ROS again with:"
+echo "Start ROS again with:"
 echo "  source ~/turtle_gorod/ros2_ws/install/setup.bash"
 echo "  ros2 launch turtle_gorod base.launch.py"
