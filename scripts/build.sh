@@ -11,8 +11,14 @@ set -u
 
 cd "$WS"
 
+ROSDEP_LIST="/etc/ros/rosdep/sources.list.d/20-default.list"
 if command -v rosdep >/dev/null 2>&1; then
-  rosdep install --from-paths src --ignore-src -r -y || true
+  if [ -f "$ROSDEP_LIST" ]; then
+    rosdep install --from-paths src --ignore-src -r -y || true
+  else
+    echo "rosdep is installed but not initialized; skipping dependency resolution."
+    echo "Optional later: sudo rosdep init && rosdep update"
+  fi
 fi
 
 colcon build --symlink-install
