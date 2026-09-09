@@ -6,6 +6,9 @@ from launch_ros.actions import Node
 import os
 
 
+ARDUINO_PORT = "/dev/serial/by-id/usb-Arduino__www.arduino.cc__Arduino_Uno_97565498126230836400-if00"
+
+
 def generate_launch_description():
     share = get_package_share_directory("turtle_gorod")
     params = os.path.join(share, "config", "base.yaml")
@@ -16,8 +19,8 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument(
             "serial_port",
-            default_value="/dev/ttyUSB0",
-            description="Arduino Nano serial port",
+            default_value=ARDUINO_PORT,
+            description="Arduino Uno lower-level controller persistent serial port",
         ),
         DeclareLaunchArgument(
             "cmd_vel_topic",
