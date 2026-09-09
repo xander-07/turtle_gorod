@@ -35,14 +35,8 @@ const int8_t ENC_DIR_L   = +1;
 const int8_t ENC_DIR_R   = -1;
 
 // Геометрия и эффективные дорожные масштабы.
-// Средний линейный масштаб 60.13 мм сохраняем, но после двух 2-метровых
-// прямолинейных тестов используем отдельные эффективные диаметры сторон.
-// Без коррекции робот ушел вправо ~13 см за 2 м.
-// При тестовой команде angular.z=+0.0065 рад/с ушел влево всего ~0.5-1 см.
-// Интерполяция до нулевого бокового ухода дает требуемое отношение тиков
-// правого/левого колеса ~1.0103 при физически прямом движении.
-// Значения ниже меняют именно преобразование тиков в путь и PID-измерение,
-// а не добавляют скрытую угловую команду.
+// Средний линейный масштаб 60.13 мм сохраняем, но используем отдельные
+// эффективные диаметры сторон, чтобы одометрия совпадала с реальным путем.
 const float LEFT_WHEEL_DIAMETER_MM  = 60.39f;
 const float RIGHT_WHEEL_DIAMETER_MM = 59.87f;
 
@@ -62,6 +56,17 @@ const float LEFT_TICK_TO_MM =
     (PI * LEFT_WHEEL_DIAMETER_MM) / LEFT_ENCODER_TICKS_PER_WHEEL_REV;
 const float RIGHT_TICK_TO_MM =
     (PI * RIGHT_WHEEL_DIAMETER_MM) / RIGHT_ENCODER_TICKS_PER_WHEEL_REV;
+
+// Калибровка именно команды приводам, не одометрии.
+// На текущей геометрии при linear.x=0.10, angular.z=0 робот уходил вправо
+// примерно на 8.5 см за 2 м. Тест с angular.z=+0.0044 рад/с дал небольшой
+// перебор влево (~0.5-1 см). Интерполяция дает нужную компенсацию около
+// +0.0040 рад/с при 0.10 м/с, что эквивалентно примерно -0.46% слева
+// и +0.46% справа. Средний коэффициент остается равным 1.0.
+// Эти множители применяются к SET_WHEELS_SPEED и сохраняют обычный API:
+// linear.x с angular.z=0 должен ехать прямо без скрытой угловой команды ROS.
+const float LEFT_DRIVE_COMMAND_SCALE  = 0.9954f;
+const float RIGHT_DRIVE_COMMAND_SCALE = 1.0046f;
 
 const uint16_t CONTROL_PERIOD_MS   = 20;   // 50 Hz
 const uint16_t TELEMETRY_PERIOD_MS = 50;   // 20 Hz
@@ -321,8 +326,8 @@ void processLine(char *line) {
       Serial.println(F("ERR SET_WHEELS_SPEED"));
       return;
     }
-    targetLeftMmS = l;
-    targetRightMmS = r;
+    targetLeftMmS = l * LEFT_DRIVE_COMMAND_SCALE;
+    targetRightMmS = r * RIGHT_DRIVE_COMMAND_SCALE;
     rawPwmMode = false;
     lastCommandMs = millis();
     Serial.println(F("OK SET_WHEELS_SPEED"));
@@ -466,7 +471,7 @@ void setup() {
   lastTelemetryMs = millis();
   lastCommandMs = millis();
 
-  Serial.println(F("READY turtle_gorod_low_level_v2.5_straight_calibrated"));
+  Serial.println(F("READY turtle_gorod_low_level_v2.6_drive_trim_calibrated"));
 }
 
 void loop() {
