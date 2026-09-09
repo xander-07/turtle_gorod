@@ -55,9 +55,10 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument("serial_port", default_value=ARDUINO_PORT),
         DeclareLaunchArgument("lidar_port", default_value=YDLIDAR_PORT),
-        DeclareLaunchArgument("lidar_x", default_value="0.0"),
+        # base_link -> laser_frame measured mounting offsets.
+        DeclareLaunchArgument("lidar_x", default_value="-0.04"),
         DeclareLaunchArgument("lidar_y", default_value="0.0"),
-        DeclareLaunchArgument("lidar_z", default_value="0.10"),
+        DeclareLaunchArgument("lidar_z", default_value="0.13"),
         DeclareLaunchArgument("lidar_yaw", default_value="0.0"),
         base,
         lidar,
