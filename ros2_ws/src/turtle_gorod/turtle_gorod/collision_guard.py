@@ -5,6 +5,7 @@ from typing import Optional
 import rclpy
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import LaserScan
 
 
@@ -40,7 +41,12 @@ class CollisionGuard(Node):
 
         self.pub = self.create_publisher(Twist, "cmd_vel_safe", 20)
         self.create_subscription(Twist, "cmd_vel", self._on_cmd, 20)
-        self.create_subscription(LaserScan, "scan", self._on_scan, 10)
+        self.create_subscription(
+            LaserScan,
+            "scan",
+            self._on_scan,
+            qos_profile_sensor_data,
+        )
 
     def _on_scan(self, msg: LaserScan):
         self._scan = msg
