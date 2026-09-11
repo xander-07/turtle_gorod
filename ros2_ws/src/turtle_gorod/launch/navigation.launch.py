@@ -25,9 +25,9 @@ def generate_launch_description():
             launch_arguments={
                 "map": map_yaml,
                 "params_file": params,
-                "use_sim_time": "false",
-                "autostart": "true",
-                "use_composition": "false",
+                "use_sim_time": "False",
+                "autostart": "True",
+                "use_composition": "False",
             }.items(),
         ),
     ])
