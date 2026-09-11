@@ -24,9 +24,9 @@ ydlidar_ros2_driver_node:
     support_motor_dtr: true
     angle_max: 180.0
     angle_min: -180.0
-    # The competition field is only a few metres across; limiting the
-    # published range reduces distant clutter without changing raw sample rate.
-    range_max: 5.0
+    # Keep the full reliable range available to AMCL. Long wall returns
+    # materially improve localization on a sparse competition field.
+    range_max: 8.0
     range_min: 0.10
     frequency: 5.0
     invalid_range_is_inf: false
