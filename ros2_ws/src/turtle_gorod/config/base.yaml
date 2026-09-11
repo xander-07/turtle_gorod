@@ -3,7 +3,10 @@ serial_bridge:
     port: /dev/ttyUSB0
     baudrate: 115200
     wheel_base_m: 0.22884
-    max_wheel_speed_mps: 0.35
+    # 180 rpm with ~60 mm wheels is about 0.57 m/s no-load. 0.60 m/s
+    # removes the old artificial 0.35 m/s cap while keeping the bridge
+    # model close to what the drivetrain can physically achieve.
+    max_wheel_speed_mps: 0.60
     cmd_timeout_sec: 0.30
     command_rate_hz: 20.0
     odom_frame: odom
