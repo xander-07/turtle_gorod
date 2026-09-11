@@ -25,6 +25,7 @@ setup(
         "console_scripts": [
             "serial_bridge = turtle_gorod.serial_bridge:main",
             "collision_guard = turtle_gorod.collision_guard:main",
+            "keyboard_teleop = turtle_gorod.keyboard_teleop:main",
         ],
     },
 )
