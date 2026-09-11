@@ -9,7 +9,12 @@ from urllib.parse import parse_qs, urlparse
 import rclpy
 from nav_msgs.msg import OccupancyGrid
 from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import (
+    DurabilityPolicy,
+    QoSProfile,
+    ReliabilityPolicy,
+    qos_profile_sensor_data,
+)
 from sensor_msgs.msg import LaserScan
 from tf2_ros import Buffer, TransformListener
 
@@ -109,7 +114,7 @@ async function tick(){
     const s=await r.json();
     if(s.map){ map=s.map; currentRev=map.rev; decodeMap(map.data,map.w,map.h); }
     pose=s.pose; scan=s.scan||[];
-    statusEl.textContent=map?'Карта обновляется':'Ожидание /map…';
+    statusEl.textContent=map?'Карта получена':'Ожидание /map…';
     if(map){
       const p=pose?` · робот x=${pose.x.toFixed(2)} y=${pose.y.toFixed(2)} yaw=${(pose.yaw*180/Math.PI).toFixed(1)}°`:'';
       infoEl.textContent=`${map.w}×${map.h} · ${map.res.toFixed(3)} м/ячейку${p}`;
@@ -145,7 +150,11 @@ class MapWebNode(Node):
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
-        self.create_subscription(OccupancyGrid, "/map", self._on_map, 10)
+        map_qos = QoSProfile(depth=1)
+        map_qos.reliability = ReliabilityPolicy.RELIABLE
+        map_qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
+
+        self.create_subscription(OccupancyGrid, "/map", self._on_map, map_qos)
         self.create_subscription(LaserScan, "/scan", self._on_scan, qos_profile_sensor_data)
         self.create_timer(0.10, self._update_pose)
 
