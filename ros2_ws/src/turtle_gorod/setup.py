@@ -28,6 +28,7 @@ setup(
             "collision_guard = turtle_gorod.collision_guard:main",
             "keyboard_teleop = turtle_gorod.keyboard_teleop:main",
             "map_web = turtle_gorod.map_web:main",
+            "navigation_web = turtle_gorod.navigation_web:main",
         ],
     },
 )
