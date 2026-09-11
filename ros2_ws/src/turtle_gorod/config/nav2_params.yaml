@@ -18,7 +18,7 @@ amcl:
     update_min_a: 0.03
     resample_interval: 1
     laser_model_type: likelihood_field
-    laser_max_range: 7.5
+    laser_max_range: 5.0
     laser_min_range: 0.10
     laser_likelihood_max_dist: 1.2
     z_hit: 0.75
@@ -95,7 +95,7 @@ controller_server:
       short_circuit_trajectory_evaluation: true
       stateful: true
       critics: ["RotateToGoal", "Oscillation", "BaseObstacle", "GoalAlign", "PathAlign", "PathDist", "GoalDist"]
-      BaseObstacle.scale: 0.04
+      BaseObstacle.scale: 0.12
       PathAlign.scale: 28.0
       PathAlign.forward_point_distance: 0.08
       GoalAlign.scale: 20.0
@@ -173,14 +173,14 @@ local_costmap:
           clearing: true
           marking: true
           data_type: "LaserScan"
-          raytrace_max_range: 7.5
+          raytrace_max_range: 5.0
           raytrace_min_range: 0.10
-          obstacle_max_range: 7.0
+          obstacle_max_range: 4.5
           obstacle_min_range: 0.10
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 5.0
-        inflation_radius: 0.24
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.34
       always_send_full_costmap: true
 
 global_costmap:
@@ -208,14 +208,14 @@ global_costmap:
           clearing: true
           marking: true
           data_type: "LaserScan"
-          raytrace_max_range: 7.5
+          raytrace_max_range: 5.0
           raytrace_min_range: 0.10
-          obstacle_max_range: 7.0
+          obstacle_max_range: 4.5
           obstacle_min_range: 0.10
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 5.0
-        inflation_radius: 0.24
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.34
       always_send_full_costmap: true
 
 velocity_smoother:
