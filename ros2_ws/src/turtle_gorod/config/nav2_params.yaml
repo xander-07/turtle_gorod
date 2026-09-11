@@ -74,14 +74,15 @@ controller_server:
       debug_trajectory_details: false
       min_vel_x: 0.0
       min_vel_y: 0.0
-      max_vel_x: 0.50
+      # The drivetrain itself tops out around 0.57 m/s with 180 rpm and ~60 mm wheels.
+      # 0.60 removes the previous software cap without making DWB plan for impossible speeds.
+      max_vel_x: 0.60
       max_vel_y: 0.0
       max_vel_theta: 1.50
       min_speed_xy: 0.0
-      max_speed_xy: 0.50
+      max_speed_xy: 0.60
       min_speed_theta: 0.55
-      # Keep 0.50 m/s cruise, but ramp into it more gently to reduce wheel slip.
-      acc_lim_x: 1.25
+      acc_lim_x: 1.50
       acc_lim_y: 0.0
       acc_lim_theta: 2.5
       decel_lim_x: -1.50
@@ -228,9 +229,9 @@ velocity_smoother:
     smoothing_frequency: 20.0
     scale_velocities: false
     feedback: "OPEN_LOOP"
-    max_velocity: [0.50, 0.0, 1.50]
-    min_velocity: [-0.12, 0.0, -1.50]
-    max_accel: [1.25, 0.0, 2.5]
+    max_velocity: [0.60, 0.0, 1.50]
+    min_velocity: [-0.18, 0.0, -1.50]
+    max_accel: [1.50, 0.0, 2.5]
     max_decel: [-1.50, 0.0, -3.0]
     odom_topic: "odom"
     odom_duration: 0.1
