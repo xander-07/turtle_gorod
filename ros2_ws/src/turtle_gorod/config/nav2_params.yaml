@@ -1,29 +1,32 @@
 amcl:
   ros__parameters:
     use_sim_time: false
-    alpha1: 0.08
-    alpha2: 0.08
-    alpha3: 0.10
-    alpha4: 0.10
-    alpha5: 0.05
+    # Slightly higher odometry noise lets AMCL recover from wheel slip on tile
+    # instead of over-trusting encoder motion.
+    alpha1: 0.12
+    alpha2: 0.12
+    alpha3: 0.18
+    alpha4: 0.18
+    alpha5: 0.08
     base_frame_id: base_link
     global_frame_id: map
     odom_frame_id: odom
     scan_topic: scan
-    min_particles: 500
-    max_particles: 2500
+    min_particles: 700
+    max_particles: 3000
     pf_err: 0.04
     pf_z: 0.99
     update_min_d: 0.03
     update_min_a: 0.03
     resample_interval: 1
     laser_model_type: likelihood_field
-    laser_max_range: 5.0
+    laser_max_range: 7.5
     laser_min_range: 0.10
     laser_likelihood_max_dist: 1.2
-    z_hit: 0.75
-    z_rand: 0.25
-    sigma_hit: 0.15
+    # Trust the LiDAR slightly more than odometry on the competition field.
+    z_hit: 0.82
+    z_rand: 0.18
+    sigma_hit: 0.13
     transform_tolerance: 0.5
     tf_broadcast: true
     set_initial_pose: false
@@ -73,16 +76,17 @@ controller_server:
       min_vel_y: 0.0
       max_vel_x: 0.50
       max_vel_y: 0.0
-      max_vel_theta: 2.00
+      max_vel_theta: 1.50
       min_speed_xy: 0.0
       max_speed_xy: 0.50
       min_speed_theta: 0.55
-      acc_lim_x: 2.50
+      # Keep 0.50 m/s cruise, but ramp into it more gently to reduce wheel slip.
+      acc_lim_x: 1.25
       acc_lim_y: 0.0
-      acc_lim_theta: 4.0
-      decel_lim_x: -2.50
+      acc_lim_theta: 2.5
+      decel_lim_x: -1.50
       decel_lim_y: 0.0
-      decel_lim_theta: -4.0
+      decel_lim_theta: -3.0
       vx_samples: 20
       vy_samples: 1
       vtheta_samples: 32
@@ -134,9 +138,9 @@ behavior_server:
     robot_base_frame: base_link
     transform_tolerance: 0.2
     simulate_ahead_time: 1.2
-    max_rotational_vel: 1.80
+    max_rotational_vel: 1.50
     min_rotational_vel: 0.55
-    rotational_acc_lim: 4.0
+    rotational_acc_lim: 2.5
 
 waypoint_follower:
   ros__parameters:
@@ -224,10 +228,10 @@ velocity_smoother:
     smoothing_frequency: 20.0
     scale_velocities: false
     feedback: "OPEN_LOOP"
-    max_velocity: [0.50, 0.0, 2.00]
-    min_velocity: [-0.12, 0.0, -2.00]
-    max_accel: [2.50, 0.0, 4.0]
-    max_decel: [-2.50, 0.0, -4.0]
+    max_velocity: [0.50, 0.0, 1.50]
+    min_velocity: [-0.12, 0.0, -1.50]
+    max_accel: [1.25, 0.0, 2.5]
+    max_decel: [-1.50, 0.0, -3.0]
     odom_topic: "odom"
     odom_duration: 0.1
     deadband_velocity: [0.0, 0.0, 0.0]
