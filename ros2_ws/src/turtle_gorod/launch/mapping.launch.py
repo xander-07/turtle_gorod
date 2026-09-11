@@ -1,6 +1,10 @@
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import (
+    DeclareLaunchArgument,
+    IncludeLaunchDescription,
+    SetEnvironmentVariable,
+)
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
@@ -16,6 +20,11 @@ def generate_launch_description():
     use_rviz = LaunchConfiguration("rviz")
 
     return LaunchDescription([
+        # RViz is normally viewed over SSH/X11 from Windows.  These settings
+        # avoid the Mesa/GLSL sampler crash seen with indirect X11 rendering.
+        SetEnvironmentVariable("QT_X11_NO_MITSHM", "1"),
+        SetEnvironmentVariable("LIBGL_ALWAYS_SOFTWARE", "1"),
+        SetEnvironmentVariable("MESA_GL_VERSION_OVERRIDE", "3.3"),
         DeclareLaunchArgument(
             "rviz",
             default_value="true",
