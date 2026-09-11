@@ -22,7 +22,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "port",
             default_value="8081",
-            description="HTTP port for the navigation browser map viewer",
+            description="HTTP port for the navigation browser UI",
         ),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(navigation_launch),
@@ -30,8 +30,8 @@ def generate_launch_description():
         ),
         Node(
             package="turtle_gorod",
-            executable="map_web",
-            name="map_web_navigation",
+            executable="navigation_web",
+            name="navigation_web",
             output="screen",
             parameters=[{"port": port}],
         ),
