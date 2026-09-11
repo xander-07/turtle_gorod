@@ -21,8 +21,8 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             "port",
-            default_value="8080",
-            description="HTTP port for the browser map viewer",
+            default_value="8081",
+            description="HTTP port for the navigation browser map viewer",
         ),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(navigation_launch),
