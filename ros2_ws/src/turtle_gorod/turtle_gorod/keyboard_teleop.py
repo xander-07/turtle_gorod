@@ -23,13 +23,16 @@ HELP = """
 Дополнительно:
   W/S/A/D     движение (английская раскладка)
   Ц/Ы/Ф/В     те же клавиши в русской раскладке
-  + / =       увеличить скорость
+  + / =       увеличить скорость (до 3.0 м/с команды)
   - / _       уменьшить скорость
   Q / Esc     выход
 
 Клавишу движения можно держать зажатой. Команды публикуются в /cmd_vel
 и проходят через collision_guard. Если поток нажатий пропал более чем на
 1.5 с, робот автоматически останавливается.
+
+Важно: указанная скорость — команда ROS. Фактическую скорость ограничивают
+приводы и max_wheel_speed_mps нижнего уровня.
 """
 
 
@@ -37,9 +40,6 @@ class KeyboardTeleop(Node):
     def __init__(self):
         super().__init__("keyboard_teleop")
 
-        # 0.10 м/с — скорость, на которой нижний уровень уже откалиброван
-        # и уверенно едет прямо. 0.70 рад/с оставляет колеса выше зоны
-        # низкоскоростного заедания при развороте на месте.
         self.declare_parameter("linear_speed", 0.10)
         self.declare_parameter("angular_speed", 0.70)
         self.declare_parameter("publish_rate_hz", 20.0)
@@ -96,10 +96,10 @@ class KeyboardTeleop(Node):
         )
 
     def change_speed(self, factor: float):
-        self.linear_speed = max(0.04, min(0.25, self.linear_speed * factor))
-        self.angular_speed = max(0.40, min(1.20, self.angular_speed * factor))
+        self.linear_speed = max(0.04, min(3.00, self.linear_speed * factor))
+        self.angular_speed = max(0.40, min(2.50, self.angular_speed * factor))
         self._print_status(
-            f"Скорость: linear={self.linear_speed:.3f} м/с, "
+            f"Скорость команды: linear={self.linear_speed:.3f} м/с, "
             f"angular={self.angular_speed:.3f} рад/с"
         )
 
@@ -174,9 +174,9 @@ def main(args=None):
                 elif key in (" ", "5"):
                     node.stop()
                 elif key in ("+", "="):
-                    node.change_speed(1.15)
+                    node.change_speed(1.25)
                 elif key in ("-", "_"):
-                    node.change_speed(1.0 / 1.15)
+                    node.change_speed(1.0 / 1.25)
                 elif lower == "q" or key in ("\x03", "\x1b"):
                     node.running = False
                     break
