@@ -16,8 +16,8 @@ HELP = """
 Основное управление (удобно через SSH):
   ↑ / 8       вперёд
   ↓ / 2       назад
-  ← / 4       поворот влево
-  → / 6       поворот вправо
+  ← / 4       поворот влево дугой
+  → / 6       поворот вправо дугой
   Space / 5   стоп
 
 Дополнительно:
@@ -26,6 +26,10 @@ HELP = """
   + / =       увеличить скорость (до 3.0 м/с команды)
   - / _       уменьшить скорость
   Q / Esc     выход
+
+Повороты A/D и стрелками больше не выполняются на месте: робот сохраняет
+небольшую поступательную скорость и идёт по дуге. Это уменьшает боковое
+проскальзывание колёс и ошибку одометрии/AMCL на плитке.
 
 Клавишу движения можно держать зажатой. Команды публикуются в /cmd_vel
 и проходят через collision_guard. Если поток нажатий пропал более чем на
@@ -42,11 +46,17 @@ class KeyboardTeleop(Node):
 
         self.declare_parameter("linear_speed", 0.10)
         self.declare_parameter("angular_speed", 0.70)
+        self.declare_parameter("wheel_base_m", 0.22884)
+        self.declare_parameter("turn_inner_wheel_margin_mps", 0.02)
         self.declare_parameter("publish_rate_hz", 20.0)
         self.declare_parameter("deadman_timeout_sec", 1.50)
 
         self.linear_speed = float(self.get_parameter("linear_speed").value)
         self.angular_speed = float(self.get_parameter("angular_speed").value)
+        self.wheel_base_m = float(self.get_parameter("wheel_base_m").value)
+        self.turn_inner_wheel_margin = float(
+            self.get_parameter("turn_inner_wheel_margin_mps").value
+        )
         self.publish_rate_hz = float(self.get_parameter("publish_rate_hz").value)
         self.deadman_timeout = float(self.get_parameter("deadman_timeout_sec").value)
 
@@ -62,7 +72,7 @@ class KeyboardTeleop(Node):
         if text == self.last_status:
             return
         self.last_status = text
-        print(f"\r{text:<70}", end="", flush=True)
+        print(f"\r{text:<82}", end="", flush=True)
 
     def stop(self):
         self.target_linear = 0.0
@@ -94,6 +104,18 @@ class KeyboardTeleop(Node):
         self._print_status(
             f"{label}: linear={linear:+.3f} м/с, angular={angular:+.3f} рад/с"
         )
+
+    def turn_linear_speed(self) -> float:
+        # Differential drive wheel speeds are:
+        #   left  = v - w * base/2
+        #   right = v + w * base/2
+        # Choose v so the inside wheel still rolls forward by a small margin.
+        # This prevents the usual one-wheel-forward / one-wheel-back pivot turn.
+        required = (
+            abs(self.angular_speed) * 0.5 * self.wheel_base_m
+            + self.turn_inner_wheel_margin
+        )
+        return max(0.12, required)
 
     def change_speed(self, factor: float):
         self.linear_speed = max(0.04, min(3.00, self.linear_speed * factor))
@@ -163,13 +185,20 @@ def main(args=None):
                 elif lower in ("s", "ы", "2", "\x1b[B"):
                     node.set_motion(-node.linear_speed, 0.0, "НАЗАД")
 
-                # Влево: стрелка, NumPad/цифра 4, A или русская Ф.
+                # Влево/вправо: только дугой, без разворота на месте.
                 elif lower in ("a", "ф", "4", "\x1b[D"):
-                    node.set_motion(0.0, node.angular_speed, "ВЛЕВО")
+                    node.set_motion(
+                        node.turn_linear_speed(),
+                        node.angular_speed,
+                        "ВЛЕВО ДУГОЙ",
+                    )
 
-                # Вправо: стрелка, NumPad/цифра 6, D или русская В.
                 elif lower in ("d", "в", "6", "\x1b[C"):
-                    node.set_motion(0.0, -node.angular_speed, "ВПРАВО")
+                    node.set_motion(
+                        node.turn_linear_speed(),
+                        -node.angular_speed,
+                        "ВПРАВО ДУГОЙ",
+                    )
 
                 elif key in (" ", "5"):
                     node.stop()
