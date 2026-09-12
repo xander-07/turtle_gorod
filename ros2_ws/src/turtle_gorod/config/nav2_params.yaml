@@ -65,51 +65,53 @@ controller_server:
 
     goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
-      xy_goal_tolerance: 0.06
-      yaw_goal_tolerance: 0.10
+      xy_goal_tolerance: 0.10
+      # We deliberately do not demand an exact final heading: exact yaw would
+      # make a differential-drive robot rotate on the spot and slip on tile.
+      yaw_goal_tolerance: 0.35
       stateful: true
 
     FollowPath:
       plugin: "dwb_core::DWBLocalPlanner"
       debug_trajectory_details: false
-      min_vel_x: 0.0
+      # Keep a small forward component during every normal DWB turn. Together
+      # with max_vel_theta=0.90 and the 0.22884 m wheelbase, the inside wheel
+      # remains moving forward instead of reversing for an on-the-spot pivot.
+      min_vel_x: 0.12
       min_vel_y: 0.0
-      # The drivetrain itself tops out around 0.57 m/s with 180 rpm and ~60 mm wheels.
-      # 0.60 removes the previous software cap without making DWB plan for impossible speeds.
       max_vel_x: 0.60
       max_vel_y: 0.0
-      max_vel_theta: 1.50
-      min_speed_xy: 0.0
+      max_vel_theta: 0.90
+      min_speed_xy: 0.12
       max_speed_xy: 0.60
-      min_speed_theta: 0.55
+      min_speed_theta: 0.0
       acc_lim_x: 1.50
       acc_lim_y: 0.0
-      acc_lim_theta: 2.5
+      acc_lim_theta: 2.0
       decel_lim_x: -1.50
       decel_lim_y: 0.0
-      decel_lim_theta: -3.0
-      vx_samples: 20
+      decel_lim_theta: -2.5
+      vx_samples: 22
       vy_samples: 1
-      vtheta_samples: 32
-      sim_time: 1.2
+      vtheta_samples: 28
+      sim_time: 1.4
       linear_granularity: 0.015
       angular_granularity: 0.02
       transform_tolerance: 0.2
-      xy_goal_tolerance: 0.06
+      xy_goal_tolerance: 0.10
       trans_stopped_velocity: 0.03
       short_circuit_trajectory_evaluation: true
       stateful: true
-      critics: ["RotateToGoal", "Oscillation", "BaseObstacle", "GoalAlign", "PathAlign", "PathDist", "GoalDist"]
+      # RotateToGoal is intentionally omitted. On Humble that critic explicitly
+      # rejects translation near the goal and forces a pure rotation in place.
+      critics: ["Oscillation", "BaseObstacle", "GoalAlign", "PathAlign", "PathDist", "GoalDist"]
       BaseObstacle.scale: 0.12
       PathAlign.scale: 28.0
-      PathAlign.forward_point_distance: 0.08
-      GoalAlign.scale: 20.0
-      GoalAlign.forward_point_distance: 0.08
+      PathAlign.forward_point_distance: 0.10
+      GoalAlign.scale: 18.0
+      GoalAlign.forward_point_distance: 0.10
       PathDist.scale: 30.0
       GoalDist.scale: 18.0
-      RotateToGoal.scale: 28.0
-      RotateToGoal.slowing_factor: 5.0
-      RotateToGoal.lookahead_time: -1.0
 
 bt_navigator:
   ros__parameters:
@@ -139,9 +141,12 @@ behavior_server:
     robot_base_frame: base_link
     transform_tolerance: 0.2
     simulate_ahead_time: 1.2
-    max_rotational_vel: 1.50
-    min_rotational_vel: 0.55
-    rotational_acc_lim: 2.5
+    # Recovery spin is retained for now, but slowed down. Normal path following
+    # no longer rotates in place. If recovery spin is observed, we will replace
+    # the default recovery tree with one that has no Spin action at all.
+    max_rotational_vel: 0.55
+    min_rotational_vel: 0.25
+    rotational_acc_lim: 1.2
 
 waypoint_follower:
   ros__parameters:
@@ -229,10 +234,10 @@ velocity_smoother:
     smoothing_frequency: 20.0
     scale_velocities: false
     feedback: "OPEN_LOOP"
-    max_velocity: [0.60, 0.0, 1.50]
-    min_velocity: [-0.18, 0.0, -1.50]
-    max_accel: [1.50, 0.0, 2.5]
-    max_decel: [-1.50, 0.0, -3.0]
+    max_velocity: [0.60, 0.0, 0.90]
+    min_velocity: [-0.18, 0.0, -0.90]
+    max_accel: [1.50, 0.0, 2.0]
+    max_decel: [-1.50, 0.0, -2.5]
     odom_topic: "odom"
     odom_duration: 0.1
     deadband_velocity: [0.0, 0.0, 0.0]
